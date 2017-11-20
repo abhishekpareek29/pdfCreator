@@ -1,0 +1,5 @@
+name = HCL Grant PDF Generation
+description = Module Generates pdf of a node and saves it on server.
+package = PDF Generation
+core = 7.x
+version = 7.x-1.0

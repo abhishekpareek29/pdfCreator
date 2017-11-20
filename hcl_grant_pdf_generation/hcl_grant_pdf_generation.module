@@ -1,0 +1,346 @@
+<?php
+/**
+ * @file
+ * Contains code to generate pdf and store it at required place.
+ */
+
+use Dompdf\Dompdf;
+use Knp\Snappy\Pdf;
+
+function hcl_grant_pdf_generation_theme() {
+  return array(
+    'hcl_grant_ngo_pdf_format' => array(
+      'template' => 'hcl_grant_ngo_pdf_format',
+      'arguments' => array(),
+      'path' => drupal_get_path('module', 'hcl_grant_pdf_generation') . '/templates',
+    ),
+    'hcl_grant_project_pdf_format' => array(
+      'template' => 'hcl_grant_project_pdf_format',
+      'arguments' => array(),
+      'path' => drupal_get_path('module', 'hcl_grant_pdf_generation') . '/templates',
+    ),
+    'hcl_grant_org_pr_pdf_format' => array(
+      'template' => 'hcl_grant_org_pr_pdf_format',
+      'arguments' => array(),
+      'path' => drupal_get_path('module', 'hcl_grant_pdf_generation') . '/templates',
+    ),
+    'hcl_grant_pr_prop_pdf_format' => array(
+      'template' => 'hcl_grant_pr_prop_pdf_format',
+      'arguments' => array(),
+      'path' => drupal_get_path('module', 'hcl_grant_pdf_generation') . '/templates',
+    ),
+  );
+}
+
+function hcl_grant_pdf_generation_node_presave($node) {
+  if ($node->type == 'ct_project') {
+    $project_life_cycle_complete = &drupal_static(__FUNCTION__);
+    if (!isset($project_life_cycle_complete)) {
+      drupal_register_shutdown_function('_hcl_grant_pdf_project_post_save', $node);
+      $project_life_cycle_complete = 'processed';
+    }
+  }
+  if ($node->type == 'ct_ngo') {
+    $ngo_life_cycle_complete = &drupal_static(__FUNCTION__);
+    if (!isset($ngo_life_cycle_complete)) {
+      drupal_register_shutdown_function('_hcl_grant_pdf_ngo_post_save', $node);
+      $ngo_life_cycle_complete = 'processed';
+    }
+  }
+  if ($node->type == 'org_pr') {
+    $org_pr_cycle_complete = &drupal_static(__FUNCTION__);
+    if (!isset($org_pr_cycle_complete)) {
+      drupal_register_shutdown_function('_hcl_grant_pdf_org_pr_post_save', $node);
+      $org_pr_cycle_complete = 'processed';
+    }
+  }
+  if ($node->type == 'pr_prop') {
+    $pr_prop_cycle_complete = &drupal_static(__FUNCTION__);
+    if (!isset($pr_prop_cycle_complete)) {
+      drupal_register_shutdown_function('_hcl_grant_pdf_pr_prop_post_save', $node);
+      $pr_prop_cycle_complete = 'processed';
+    }
+  }
+}
+
+function _hcl_grant_pdf_project_post_save($node) {
+  if ($node->status == 1) {
+    $saved_node = node_load($node->nid);
+
+    // Business logic starts.
+    $variables['node'] = $saved_node;
+    $node_html = theme('hcl_grant_project_pdf_format', $variables);
+
+    // $dompdf_path = libraries_get_path('dompdf');
+    $snappy_path = libraries_get_path('snappy');
+    if (isset($snappy_path)) {
+      // require_once($dompdf_path . '/autoload.inc.php');
+      require_once($snappy_path . '/vendor/autoload.php');
+
+      // // Instantiate and use the dompdf class
+      // $dompdf = new Dompdf();
+      // $dompdf->loadHtml($node_html);
+
+      // // Setup the paper size and orientation
+      // $dompdf->setPaper('A4', 'landscape');
+
+      // // Render the HTML as PDF
+      // $dompdf->render();
+      // $dompdf->set_base_path('http://hcl_grant.lc/docroot/sites/all/themes/sub/hcl_grant/hcl_made_css_js/css/form.css');
+      // $pdfoutput = $dompdf->output();
+
+      $snappy = new Pdf('/usr/local/bin/wkhtmltopdf.sh');
+      $snappy->setOption('user-style-sheet', DRUPAL_ROOT . '/sites/all/themes/sub/hcl_grant/hcl_made_css_js/css/project_pdf.css');
+      $snappy->setOption('margin-top', '5mm');
+      $snappy->setOption('margin-bottom', '5mm');
+      $pdfoutput = $snappy->getOutputFromHtml($node_html);
+
+      //  Checks whether there is an output folder inside sites/default/files
+      if (!is_dir('public://submissions')) {
+        // Creates a folder and changes its permissions
+        mkdir("public://submissions", 0777);
+      }
+      if (!is_dir('public://submissions/pdf')) {
+        // Creates a folder and changes its permissions
+        mkdir("public://submissions/pdf", 0777);
+      }
+
+      // Date folder.
+      $date = date('Y-F-d', REQUEST_TIME);
+      if (!is_dir('public://submissions/pdf/' . $date)) {
+        // Creates a folder and changes its permissions
+        mkdir('public://submissions/pdf/' . $date, 0777);
+      }
+
+      $filename = 'public://submissions/pdf/' . $date . '/project-submission-' . $node->nid . '.pdf';
+
+      $file_object = file_save_data($pdfoutput, $filename, FILE_EXISTS_REPLACE);
+      $file_object_arr = (array)$file_object;
+      $file_object_arr['display'] = 1;
+
+      $saved_node->field_ct_project_file[$node->language][0] = $file_object_arr;
+      node_save($saved_node);
+    }
+  }
+}
+
+function _hcl_grant_pdf_ngo_post_save($node) {
+  if ($node->status == 1) {
+    $saved_node = node_load($node->nid);
+
+    // Business logic starts.
+    $variables['node'] = $saved_node;
+
+    $node_html = theme('hcl_grant_ngo_pdf_format', $variables);
+
+    $snappy_path = libraries_get_path('snappy');
+    if (isset($snappy_path)) {
+      require_once($snappy_path . '/vendor/autoload.php');
+
+      // // Instantiate and use the dompdf class
+      // $dompdf = new Dompdf();
+      // $dompdf->loadHtml($node_html);
+
+      // // $dompdf->set_base_path('sites/all/themes/sub/hcl_grant/hcl_made_css_js/css/form.css');
+      // $dompdf->setPaper('A4', 'portrait');
+
+      // // Render the HTML as PDF
+      // $dompdf->render();
+
+      // $pdfoutput = $dompdf->output();
+
+      $snappy = new Pdf('/usr/local/bin/wkhtmltopdf.sh');
+      $snappy->setOption('user-style-sheet', DRUPAL_ROOT . '/sites/all/themes/sub/hcl_grant/hcl_made_css_js/css/pdf.css');
+      $snappy->setOption('margin-top', '5mm');
+      $snappy->setOption('margin-bottom', '5mm');
+      $pdfoutput = $snappy->getOutputFromHtml($node_html);
+
+      //  Checks whether there is an output folder inside sites/default/files
+      if (!is_dir('public://submissions')) {
+        // Creates a folder and changes its permissions
+        mkdir("public://submissions", 0777);
+      }
+      if (!is_dir('public://submissions/pdf')) {
+        // Creates a folder and changes its permissions
+        mkdir("public://submissions/pdf", 0777);
+      }
+
+      // Date folder.
+      $date = date('Y-F-d', REQUEST_TIME);
+      if (!is_dir('public://submissions/pdf/' . $date)) {
+        // Creates a folder and changes its permissions
+        mkdir('public://submissions/pdf/' . $date, 0777);
+      }
+
+      $filename = 'public://submissions/pdf/' . $date . '/ngo-submission-' . $node->nid . '.pdf';
+
+      $file_object = file_save_data($pdfoutput, $filename, FILE_EXISTS_REPLACE);
+      $file_object_arr = (array)$file_object;
+      $file_object_arr['display'] = 1;
+
+      $saved_node->field_ct_ngo_details_pdf[$node->language][0] = $file_object_arr;
+      node_save($saved_node);
+    }
+  }
+}
+
+function _hcl_grant_pdf_org_pr_post_save($node) {
+  if ($node->status == 1) {
+    $uid = $node->uid;
+    $saved_node = node_load($node->nid);
+    // Business logic starts.
+    $variables['node'] = $saved_node;
+
+    $node_html = theme('hcl_grant_org_pr_pdf_format', $variables);
+
+    $snappy_path = libraries_get_path('snappy');
+    if (isset($snappy_path)) {
+      require_once($snappy_path . '/vendor/autoload.php');
+      // // Instantiate and use the dompdf class
+      // $dompdf = new Dompdf();
+      // $dompdf->loadHtml($node_html);
+
+      // // $dompdf->set_base_path('sites/all/themes/sub/hcl_grant/hcl_made_css_js/css/form.css');
+      // $dompdf->setPaper('A4', 'portrait');
+
+      // // Render the HTML as PDF
+      // $dompdf->render();
+
+      // $pdfoutput = $dompdf->output();
+
+      $snappy = new Pdf('/usr/local/bin/wkhtmltopdf.sh');
+      $snappy->setOption('user-style-sheet', DRUPAL_ROOT . '/sites/all/themes/sub/hcl_grant/hcl_made_css_js/css/pdf.css');
+      $snappy->setOption('margin-top', '5mm');
+      $snappy->setOption('margin-bottom', '5mm');
+      $pdfoutput = $snappy->getOutputFromHtml($node_html);
+      //  Checks whether there is an output folder inside sites/default/files
+      if (!is_dir('public://documents')) {
+        // Creates a folder and changes its permissions
+        mkdir("public://documents", 0777);
+      }
+      $user_specific_dir = 'public://documents/' . $uid;
+      if (!is_dir($user_specific_dir)) {
+        // Creates a folder and changes its permissions
+        mkdir($user_specific_dir, 0777);
+      }
+      // Org folder.
+      $user_specific_dir_org_pr = $user_specific_dir . '/organizational_profile';
+      if (!is_dir($user_specific_dir_org_pr)) {
+        // Creates a folder and changes its permissions
+        mkdir($user_specific_dir_org_pr, 0777);
+      }
+
+      // // Date folder.
+      // $date = date('Y-F-d', REQUEST_TIME);
+      // if (!is_dir('public://submissions/pdf/' . $date)) {
+      //   // Creates a folder and changes its permissions
+      //   mkdir('public://submissions/pdf/' . $date, 0777);
+      // }
+
+      $filename = $user_specific_dir_org_pr . '/ngo-submission-' . $node->nid . '.pdf';
+
+      $file_object = file_save_data($pdfoutput, $filename, FILE_EXISTS_REPLACE);
+      $file_object_arr = (array)$file_object;
+      $file_object_arr['display'] = 1;
+
+      $saved_node->field_org_pr_pdf[$node->language][0] = $file_object_arr;
+      node_save($saved_node);
+    }
+  }
+}
+
+function _hcl_grant_pdf_pr_prop_post_save($node) {
+  // User UID.
+  $uid = $node->uid;
+  $saved_node = node_load($node->nid);
+
+  // Save org_pr reference of it.
+  $variables['node'] = $saved_node;
+  $org_pr_nid = get_org_pr_node_id($uid);
+  if ($org_pr_nid != FALSE) {
+    $saved_node->field_pr_prop_org_profile_ref[$node->language][0]['target_id'] = $org_pr_nid;
+  }
+
+  if ($node->status == 1) {
+    // Business logic starts.
+    $node_html = theme('hcl_grant_pr_prop_pdf_format', $variables);
+
+    $snappy_path = libraries_get_path('snappy');
+    if (isset($snappy_path)) {
+      require_once($snappy_path . '/vendor/autoload.php');
+      // // Instantiate and use the dompdf class
+      // $dompdf = new Dompdf();
+      // $dompdf->loadHtml($node_html);
+
+      // // $dompdf->set_base_path('sites/all/themes/sub/hcl_grant/hcl_made_css_js/css/form.css');
+      // $dompdf->setPaper('A4', 'portrait');
+
+      // // Render the HTML as PDF
+      // $dompdf->render();
+
+      // $pdfoutput = $dompdf->output();
+
+      $snappy = new Pdf('/usr/local/bin/wkhtmltopdf.sh');
+      $snappy->setOption('user-style-sheet', DRUPAL_ROOT . '/sites/all/themes/sub/hcl_grant/hcl_made_css_js/css/pdf.css');
+      $snappy->setOption('margin-top', '5mm');
+      $snappy->setOption('margin-bottom', '5mm');
+      $pdfoutput = $snappy->getOutputFromHtml($node_html);
+      //  Checks whether there is an output folder inside sites/default/files
+      if (!is_dir('public://documents')) {
+        // Creates a folder and changes its permissions
+        mkdir("public://documents", 0777);
+      }
+      $user_specific_dir = 'public://documents/' . $uid;
+      if (!is_dir($user_specific_dir)) {
+        // Creates a folder and changes its permissions
+        mkdir($user_specific_dir, 0777);
+      }
+      // Org folder.
+      $user_specific_dir_org_pr = $user_specific_dir . '/Project_Proposal';
+      if (!is_dir($user_specific_dir_org_pr)) {
+        // Creates a folder and changes its permissions
+        mkdir($user_specific_dir_org_pr, 0777);
+      }
+
+      // // Date folder.
+      // $date = date('Y-F-d', REQUEST_TIME);
+      // if (!is_dir('public://submissions/pdf/' . $date)) {
+      //   // Creates a folder and changes its permissions
+      //   mkdir('public://submissions/pdf/' . $date, 0777);
+      // }
+
+      $filename = $user_specific_dir_org_pr . '/project-proposal-' . $node->nid . '.pdf';
+
+      $file_object = file_save_data($pdfoutput, $filename, FILE_EXISTS_REPLACE);
+      $file_object_arr = (array)$file_object;
+      $file_object_arr['display'] = 1;
+
+      $saved_node->field_pr_prop_pdf[$node->language][0] = $file_object_arr;
+      node_save($saved_node);
+    }
+  }
+  else {
+    node_save($saved_node);
+  }
+}
+
+function get_org_pr_node_id($uid) {
+  if (isset($uid)) {
+    $query = new EntityFieldQuery();
+    $query->entityCondition('entity_type', 'node')
+      ->entityCondition('bundle', 'org_pr')
+      ->propertyCondition('status', NODE_PUBLISHED)
+      ->propertyCondition('uid', $uid);
+    $result = $query->execute();
+    if (isset($result['node'])) {
+      $org_pr_nid = key($result['node']);
+      return $org_pr_nid;
+    }
+    else {
+      return FALSE;
+    }
+  }
+  else {
+    return FALSE;
+  }
+}
